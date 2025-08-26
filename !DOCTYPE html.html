@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Umbrella Share</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align:center; background:#f0f8ff; padding:20px; margin:0; }
+    h1 { color:#333; margin-top:40px; }
+    .btn { width:200px; padding:15px; margin:10px; border:none; border-radius:10px;
+          font-size:18px; color:white; cursor:pointer; }
+    .borrow { background:#28a745; }
+    .return { background:#007bff; }
+    .report { background:#dc3545; }
+    .status { background:#ff9800; }
+    .form, .result { display:none; margin-top:20px; }
+    input, textarea, select { padding:10px; margin:10px; width:80%; max-width:250px; }
+    .submit, .back { background:#333; color:white; padding:10px 20px; border:none; border-radius:5px; cursor:pointer; margin:5px; }
+    table { margin:auto; border-collapse:collapse; width:95%; max-width:700px; }
+    td, th { border:1px solid #999; padding:6px; font-size:14px; }
+    /* มุมล่างเลือกตู้ */
+    .locker-select {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+    .status-table {
+        margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Umbrella Share</h1>
+
+  <!-- หน้าแรก -->
+  <div id="home">
+    <button class="btn borrow" onclick="showForm('ยืม')">ยืม</button>
+    <button class="btn return" onclick="showForm('คืน')">คืน</button>
+    <button class="btn report" onclick="showForm('แจ้งซ่อม')">แจ้งซ่อม</button>
+    <button class="btn status" onclick="showForm('เช็คสถานะ')">เช็คสถานะ</button>
+  </div>
+
+  <!-- ฟอร์ม -->
+  <div id="form" class="form">
+    <h2 id="actionText"></h2>
+    <div id="formContent"></div>
+    <button class="back" onclick="goHome()">กลับ</button>
+  </div>
+
+  <!-- ผลลัพธ์ -->
+  <div id="result" class="result">
+    <h2>ผลลัพธ์</h2>
+    <div id="resultMsg"></div>
+    <button class="back" onclick="goHome()">กลับหน้าแรก</button>
+  </div>
+
+  <!-- ตัวเลือกตู้ -->
+  <div class="locker-select">
+    <label for="lockerSelect">📍 สถานที่:</label>
+    <select id="lockerSelect" onchange="changeLocker()">
+      <option value="A">ตู้ A - ตึกวิศวะ</option>
+      <option value="B">ตู้ B - ตึกพยาบาล</option>
+      <option value="C">ตู้ C - หอพักพะยอม 4</option>
+    </select>
+  </div>
+
+  <script>
+    let currentAction = "";
+    let currentLocker = "A"; // Default value
+
+    // Global umbrella status
+    let umbrellaStatus = JSON.parse(localStorage.getItem("umbrellaStatus")||"{}");
+    if(Object.keys(umbrellaStatus).length===0){
+      umbrellaStatus = {
+        "0001": {status:"ว่าง", locker:"A"},
+        "0002": {status:"ว่าง", locker:"A"},
+        "0003": {status:"ว่าง", locker:"A"},
+        "0004": {status:"ว่าง", locker:"A"},
+        "0005": {status:"ว่าง", locker:"A"},
+        "0006": {status:"ว่าง", locker:"B"},
+        "0007": {status:"ว่าง", locker:"B"},
+        "0008": {status:"ว่าง", locker:"B"},
+        "0009": {status:"ว่าง", locker:"B"},
+        "0010": {status:"ว่าง", locker:"B"},
+        "0011": {status:"ว่าง", locker:"C"},
+        "0012": {status:"ว่าง", locker:"C"},
+        "0013": {status:"ว่าง", locker:"C"},
+        "0014": {status:"ว่าง", locker:"C"},
+        "0015": {status:"ว่าง", locker:"C"}
+      };
+      localStorage.setItem("umbrellaStatus", JSON.stringify(umbrellaStatus));
+    }
+
+    // New user data
+    let users = {};
+    const userData = [
+        ["6820910001", "นายกาญจวัฒน์ ไชยพงศ์", "0929626135"],
+        ["6820910002", "นางสาวกุลณัฐฎา ไทรพันธ์แก้ว", "0990568692"],
+        ["6820910003", "นายเกียรตินำชัย ทองน้อย", "0657394189"],
+        ["6820910004", "นายจักรกฤษณ์ นิลคง", "0817203631"],
+        ["6820910006", "นางสาวจัสมิน นิลสมุทร์", "0930865662"],
+        ["6820910007", "นายซอลีฮีน จินดาวิจิตร์", "0658174394"],
+        ["6820910009", "นายณวัฒน์ โพธิขำ", "0645924198"],
+        ["6820910010", "นายณัชชา สัมฤทธิ์", "0807751321"],
+        ["6820910011", "นายณัฏฐชัย สายเท้าเอี้ยน", "0649521413"],
+        ["6820910012", "นางสาวณัฐนันท์ รักษศรี", "0943180079"],
+        ["6820910013", "นายณัฐวัฒน์ เพชรอาวุธ", "0988861820"],
+        ["6820910014", "นายต่วนกูอิครัม มามะ", "0621610441"],
+        ["6820910015", "นายธนกร บรรสาร", "0650836030"],
+        ["6820910016", "นายธนกฤต แก้วท่าพยา", "0989726498"],
+        ["6820910017", "นายธรรศ ชูสุวรรณ์", "0615758346"],
+        ["6820910018", "นายธิระพงษ์ คงศรี", "0635024889"],
+        ["6820910020", "นายธีรภัทร ไกรเลิศ", "0635846903"],
+        ["6820910021", "นาย นภัส ศิริรัตนานนท์", "0629823015"],
+        ["6820910022", "นาย นภัสกร จินาอุ", "0955410907"],
+        ["6820910023", "นายนราวิชญ์ หนักแน่น", "0966432347"],
+        ["6820910024", "นางสาวนัชญมี ทองดี", "0807483778"],
+        ["6820910025", "นางสาวนุรฮัสมี สามะ", "0858435510"],
+        ["6820910027", "นายปรเมษฐ์ คงรังษี", "0925261556"],
+        ["6820910028", "นายปุณณวิศว์ ขาวปาน", "0982900920"],
+        ["6820910029", "นาย พนมกร ประเพชร", "0930072101"],
+        ["6820910030", "นายรัฐภูมิ นุราช", "0855744198"],
+        ["6820910031", "นางสาววรรณนิสา เฮียนฮะ", "0983460136"],
+        ["6820910032", "วรายุทธ์ หมวกพราย", "0986983868"],
+        ["6820910033", "นายวีรภาพ หลงสมัน", "0639504337"],
+        ["6820910034", "นายวีระวิชญ์ ชายเกลี้ยง", "0982693901"],
+        ["6820910035", "นายศิวเทพ แซ่ล่อย", "0985787932"],
+        ["6820910036", "นางสาวษาลิณี สาแม", "0648901159"],
+        ["6820910037", "นายสนธยา กะหริม", "0639743355"],
+        ["6820910038", "นายอธิวัฒน์ รอดริน", "0807211859"],
+        ["6820910039", "นายอัฟด๊อล ปาแน", "0838564015"],
+        ["6820910040", "นายอัสริน หมาดชาย", "0807583687"],
+        ["6820910041", "นายเอกพันธ์ กุลธน", "0640681835"],
+        ["6820910042", "นายฮาดิษ เหมสลาหมาด", "0651081106"],
+        ["6820910043", "นางสาวฮานีซาร์ อุมา", "0926639637"],
+        ["6820910195", "นายซะอูดี มะประสิทธิ์", "0925408356"],
+        ["6820910196", "นายปรมินทร์ สุขนวล", "0617634898"],
+        ["6820910197", "นางสาวมยุรี บิลอะหลี", "0983636160"],
+        ["6820910198", "นายมูฮำหมัดยูโซ๊ะ มะหลี", "0934105164"],
+        ["6820910199", "นายสุพัฒน์ คงสง", "0935802352"],
+        ["6820910200", "นายอนุวัฒน์ อาจหาญ", "0959892420"],
+        ["6820910213", "นายทินภัทร ทองแก้วเกิด", "0925510447"],
+        ["6820910214", "นายศราวุธ ส้าหัน", "0803757687"],
+        ["6820930001", "นายจิตติกร จุลคง", "0936267040"],
+        ["6820930002", "นายชญานนท์ อินทฤทธิ์", "0614917226"],
+        ["6820930003", "นายทัศน์ไท เจริญสุขมั่น", "0817634401"],
+        ["6820930004", "นายธีรภัทร์ เรืองรักษ์", "0985806567"],
+        ["6820930005", "นายรัตนชัย หนูเทพ", "0807532837"],
+        ["6820930006", "นายศุภกรณ์ ชัยวิเศษ", "0934872559"],
+        ["6820930007", "นายสราวุฒณ์ นวลวดี", "0807532837"],
+        ["6820930008", "นายสราวุธ จันทร์สุขศรี", "0653868296"]
+    ];
+
+    // Check if user data exists in localStorage, otherwise initialize it
+    if (!localStorage.getItem("users")) {
+        for (const user of userData) {
+            users[user[0]] = {
+                name: user[1],
+                phone: user[2]
+            };
+        }
+        localStorage.setItem("users", JSON.stringify(users));
+    } else {
+        users = JSON.parse(localStorage.getItem("users"));
+    }
+
+    function changeLocker(){
+      currentLocker = document.getElementById("lockerSelect").value;
+      console.log("Selected locker:", currentLocker);
+    }
+
+    function showForm(action) {
+      currentAction = action;
+      document.getElementById("home").style.display = "none";
+      document.getElementById("form").style.display = "block";
+      document.getElementById("result").style.display = "none";
+
+      let html = "";
+      let actionText = action;
+
+      if(action==="ยืม" || action==="คืน"){
+        html += `<input type="text" id="studentId" placeholder="รหัสประจำตัว"><br>`;
+        html += `<button class="submit" onclick="nextStep()">ยืนยัน</button>`;
+        actionText += ` (ตู้ ${currentLocker})`;
+      } else if(action==="แจ้งซ่อม"){
+        html += `<input type="text" id="studentId" placeholder="รหัสประจำตัว"><br>`;
+        html += `<input type="text" id="umbrellaId" placeholder="รหัสร่ม 4 หลัก"><br>`;
+        html += `<textarea id="repairDetail" placeholder="รายละเอียดการซ่อม"></textarea><br>`;
+        html += `<button class="submit" onclick="submitForm()">ยืนยัน</button>`;
+      } else if(action==="เช็คสถานะ"){
+        // Build the complete HTML content for the status page
+        let allStatusHtml = `<div class="status-table">`;
+        allStatusHtml += `<h3>สถานะร่มทั้งหมด</h3>`;
+        allStatusHtml += "<table><tr><th>รหัสร่ม</th><th>สถานะ</th><th>ที่ตั้งล่าสุด</th></tr>";
+        
+        for(const id in umbrellaStatus){
+          const umbrella = umbrellaStatus[id];
+          allStatusHtml += `<tr><td>${id}</td><td>${umbrella.status}</td><td>${umbrella.locker}</td></tr>`;
+        }
+        allStatusHtml += "</table></div>";
+
+        let personalStatusForm = `<p>หากต้องการดูประวัติการใช้งานของคุณ ให้กรอกรหัสประจำตัวด้านล่าง</p>`;
+        personalStatusForm += `<input type="text" id="studentId" placeholder="รหัสประจำตัว"><br>`;
+        personalStatusForm += `<button class="submit" onclick="nextStep()">ดูประวัติ</button>`;
+
+        html = allStatusHtml + personalStatusForm;
+      }
+      document.getElementById("formContent").innerHTML = html;
+      document.getElementById("actionText").innerText = actionText;
+    }
+
+    function nextStep(){
+      const sid = document.getElementById("studentId").value.trim();
+      // Only require student ID if not in the initial 'เช็คสถานะ' view
+      if(!sid && currentAction !== 'เช็คสถานะ'){ alert("กรุณากรอกรหัสประจำตัว"); return; }
+      
+      let html = "";
+      
+      // Check if ID exists for 'ยืม', 'คืน', and 'แจ้งซ่อม' actions
+      if (currentAction !== "เช็คสถานะ" && !users[sid]) {
+          html = `<p style="color:red;">ไม่พบข้อมูลรหัสประจำตัวนี้</p>`;
+          document.getElementById("formContent").innerHTML = html;
+          return;
+      }
+      
+      const userInfo = users[sid];
+
+      if(currentAction==="ยืม"){
+        let available = Object.entries(umbrellaStatus)
+          .filter(([id,obj])=> obj.locker===currentLocker && obj.status==="ว่าง");
+        if(available.length===0){
+          html = `<p>ไม่มีร่มว่างในตู้ ${currentLocker}</p>`;
+        } else {
+          html += `<p>ผู้ใช้: ${userInfo.name}<br>รหัสประจำตัว: ${sid}</p>`;
+          html += `<p>เลือกร่มที่จะยืม (ตู้ ${currentLocker})</p><select id="umbrellaId">`;
+          available.forEach(([id])=> html += `<option value="${id}">${id}</option>`);
+          html += `</select><br><button class="submit" onclick="submitForm('${sid}')">ยืม</button>`;
+        }
+      } else if(currentAction==="คืน"){
+        let db = JSON.parse(localStorage.getItem("umbrellaDB")||"{}");
+        // Filter for umbrellas that are currently borrowed by this student
+        let list = db[sid]?.filter(r=>r.action==="ยืม" && r.status==="ถูกยืม") || [];
+        if(list.length===0){
+          html = `<p>คุณไม่มีร่มที่ต้องคืน</p>`;
+        } else {
+          html += `<p>ผู้ใช้: ${userInfo.name}<br>รหัสประจำตัว: ${sid}</p>`;
+          html += `<p>เลือกร่มที่จะคืน (ตู้ ${currentLocker})</p><select id="umbrellaId">`;
+          list.forEach(r=> html += `<option value="${r.umbrella}">${r.umbrella}</option>`);
+          html += `</select><br><button class="submit" onclick="submitForm('${sid}')">คืน</button>`;
+        }
+      } else if(currentAction==="แจ้งซ่อม"){
+        html += `<p>ผู้ใช้: ${userInfo.name}<br>รหัสประจำตัว: ${sid}</p>`;
+        html += `<input type="text" id="umbrellaId" placeholder="รหัสร่ม 4 หลัก"><br>`;
+        html += `<textarea id="repairDetail" placeholder="รายละเอียดการซ่อม"></textarea><br>`;
+        html += `<button class="submit" onclick="submitForm('${sid}')">ยืนยัน</button>`;
+      } else if(currentAction==="เช็คสถานะ"){
+        let db = JSON.parse(localStorage.getItem("umbrellaDB")||"{}");
+        let list = db[sid] || [];
+        if(list.length===0){
+          html = `<p>ไม่พบข้อมูลการใช้งาน</p>`;
+        } else {
+          html = `<h3>ประวัติการใช้งานของ ${users[sid]?.name || sid}</h3>`;
+          html += "<table><tr><th>ร่ม</th><th>การทำงาน</th><th>ตู้ยืม</th><th>ตู้คืน</th><th>เวลา</th><th>สถานะ</th></tr>";
+          list.forEach(r=> html += `<tr><td>${r.umbrella}</td><td>${r.action}</td><td>${r.borrowLocker||'-'}</td><td>${r.returnLocker||'-'}</td><td>${r.time}</td><td>${r.status}</td></tr>`);
+          html += "</table>";
+        }
+      }
+      document.getElementById("formContent").innerHTML = html;
+    }
+
+    function submitForm(sid){
+      const umbrellaId = document.getElementById("umbrellaId")?.value;
+      const detail = document.getElementById("repairDetail")?.value || "";
+
+      let db = JSON.parse(localStorage.getItem("umbrellaDB")||"{}");
+      if(!db[sid]) db[sid] = [];
+
+      if(currentAction==="ยืม"){
+        let record = {
+          action: currentAction,
+          umbrella: umbrellaId,
+          time: new Date().toLocaleString(),
+          borrowLocker: currentLocker,
+          returnLocker: "-",
+          status: "ถูกยืม"
+        };
+        db[sid].push(record);
+        umbrellaStatus[umbrellaId].status="ถูกยืม";
+      } else if(currentAction==="คืน"){
+        let recordToUpdate = db[sid].find(r => r.umbrella === umbrellaId && r.status === "ถูกยืม");
+        if(recordToUpdate){
+          recordToUpdate.status="คืนแล้ว";
+          recordToUpdate.returnLocker=currentLocker;
+        }
+        umbrellaStatus[umbrellaId].status="ว่าง";
+        umbrellaStatus[umbrellaId].locker=currentLocker;
+      } else if(currentAction==="แจ้งซ่อม"){
+        let record = {
+          action: currentAction,
+          umbrella: umbrellaId,
+          detail: detail,
+          time: new Date().toLocaleString(),
+          borrowLocker: "-",
+          returnLocker: "-",
+          status: "แจ้งซ่อม"
+        };
+        db[sid].push(record);
+        umbrellaStatus[umbrellaId] = {status:"แจ้งซ่อม", locker:"อยู่ระหว่างการซ่อม"};
+      }
+      
+      localStorage.setItem("umbrellaDB", JSON.stringify(db));
+      localStorage.setItem("umbrellaStatus", JSON.stringify(umbrellaStatus));
+
+      const userInfo = users[sid];
+
+      document.getElementById("form").style.display="none";
+      document.getElementById("result").style.display="block";
+
+      let resultRecord = db[sid].slice(-1)[0]; // Get the last record for display
+      document.getElementById("resultMsg").innerHTML = `
+        <h3>การทำรายการสำเร็จ</h3>
+        <p><b>ข้อมูลผู้ใช้:</b></p>
+        <p>รหัสประจำตัว: ${sid}<br>
+        ชื่อ: ${userInfo.name}<br>
+        เบอร์โทร: ${userInfo.phone}</p>
+        <p><b>ข้อมูลการทำรายการ:</b></p>
+        <p>รหัสร่ม: ${resultRecord.umbrella || '-'}<br>
+        การทำงาน: ${resultRecord.action}<br>
+        ยืมจากตู้: ${resultRecord.borrowLocker || '-'}<br>
+        คืนที่ตู้: ${resultRecord.returnLocker || '-'}<br>
+        เวลา: ${resultRecord.time}<br>
+        สถานะ: ${resultRecord.status}</p>
+      `;
+    }
+
+    function goHome(){
+      document.getElementById("home").style.display="block";
+      document.getElementById("form").style.display="none";
+      document.getElementById("result").style.display="none";
+    }
+  </script>
+</body>
+</html>
